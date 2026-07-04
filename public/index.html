@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>داشبورد زنده پالس‌اکسیمتر</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: Tahoma, Arial, sans-serif;
+    background: #0f1115;
+    color: #e8e8e8;
+    text-align: center;
+    padding: 24px 16px;
+    margin: 0;
+  }
+  h1 { font-weight: 500; margin-bottom: 8px; }
+  .cards { display: flex; justify-content: center; gap: 16px; flex-wrap: wrap; margin: 20px 0; }
+  .card {
+    background: #1c1f26;
+    border-radius: 16px;
+    padding: 20px 36px;
+    min-width: 140px;
+  }
+  .label { font-size: 14px; color: #9aa0aa; margin-bottom: 8px; }
+  .value { font-size: 42px; font-weight: 700; }
+  .bpm   { color: #ff5c5c; }
+  .spo2  { color: #4da3ff; }
+  .status { font-size: 13px; color: #9aa0aa; margin-bottom: 8px; }
+  .chart-wrap {
+    max-width: 900px;
+    margin: 0 auto;
+    background: #1c1f26;
+    border-radius: 16px;
+    padding: 16px;
+  }
+</style>
+</head>
+<body>
+
+<h1>❤️ داشبورد زنده پالس‌اکسیمتر</h1>
+<div class="status" id="status">در حال اتصال...</div>
+
+<div class="cards">
+  <div class="card">
+    <div class="label">ضربان قلب (BPM)</div>
+    <div class="value bpm" id="bpm">--</div>
+  </div>
+  <div class="card">
+    <div class="label">اشباع اکسیژن (FSpO2)</div>
+    <div class="value spo2" id="fspo2">--</div>
+  </div>
+</div>
+
+<div class="chart-wrap">
+  <canvas id="liveChart" height="110"></canvas>
+</div>
+
+<script>
+const MAX_POINTS = 30;
+const ctx = document.getElementById('liveChart').getContext('2d');
+const chart = new Chart(ctx, {
+  type: 'line',
+  data: {
+    labels: [],
+    datasets: [
+      { label: 'BPM', data: [], borderColor: '#ff5c5c', backgroundColor: 'transparent', tension: 0.3, pointRadius: 0 },
+      { label: 'SpO2 %', data: [], borderColor: '#4da3ff', backgroundColor: 'transparent', tension: 0.3, pointRadius: 0 },
+    ],
+  },
+  options: {
+    animation: false,
+    responsive: true,
+    scales: {
+      x: { ticks: { color: '#9aa0aa', maxTicksLimit: 8 }, grid: { color: '#2a2e37' } },
+      y: { ticks: { color: '#9aa0aa' }, grid: { color: '#2a2e37' } },
+    },
+    plugins: { legend: { labels: { color: '#e8e8e8' } } },
+  },
+});
+
+let lastTs = null;
+
+async function updateLive() {
+  try {
+    const res = await fetch('/api/readings/latest');
+    const d = await res.json();
+
+    if (d && typeof d.bpm === 'number') {
+      document.getElementById('bpm').textContent = d.bpm;
+      document.getElementById('fspo2').textContent = d.fspo2 ?? d.spo2 ?? '--';
+
+      const age = Math.round((Date.now() - d.ts) / 1000);
+      document.getElementById('status').textContent =
+        age < 10 ? '🟢 زنده - آخرین بروزرسانی ' + age + ' ثانیه پیش'
+                  : '🟠 آخرین داده ' + age + ' ثانیه پیش (ممکنه دستگاه آفلاین باشه)';
+
+      if (d.ts !== lastTs) {
+        lastTs = d.ts;
+        chart.data.labels.push(new Date(d.ts).toLocaleTimeString('fa-IR'));
+        chart.data.datasets[0].data.push(d.bpm);
+        chart.data.datasets[1].data.push(d.fspo2 ?? d.spo2);
+
+        if (chart.data.labels.length > MAX_POINTS) {
+          chart.data.labels.shift();
+          chart.data.datasets[0].data.shift();
+          chart.data.datasets[1].data.shift();
+        }
+        chart.update();
+      }
+    } else {
+      document.getElementById('status').textContent = '⚪ هنوز داده‌ای دریافت نشده';
+    }
+  } catch (e) {
+    document.getElementById('status').textContent = '🔴 خطا در اتصال به سرور';
+  }
+}
+
+updateLive();
+setInterval(updateLive, 2000);
+</script>
+
+</body>
+</html>
