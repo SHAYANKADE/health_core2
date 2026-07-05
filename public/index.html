@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>داشبورد زنده پالس‌اکسیمتر</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
 <style>
   * { box-sizing: border-box; }
   body {
@@ -34,10 +35,6 @@
     border-radius: 16px;
     padding: 16px;
   }
-  .legend { display: flex; justify-content: center; gap: 20px; margin-top: 8px; font-size: 13px; }
-  .legend span { display: inline-flex; align-items: center; gap: 6px; }
-  .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
-  canvas { width: 100%; height: 220px; display: block; }
 </style>
 </head>
 <body>
@@ -57,76 +54,31 @@
 </div>
 
 <div class="chart-wrap">
-  <canvas id="liveChart"></canvas>
-  <div class="legend">
-    <span><span class="dot" style="background:#ff5c5c"></span> BPM</span>
-    <span><span class="dot" style="background:#4da3ff"></span> SpO2 %</span>
-  </div>
+  <canvas id="liveChart" height="110"></canvas>
 </div>
 
 <script>
-// ---------------------------------------------------------------
-// نمودار زنده‌ی ساده - کاملاً با جاوااسکریپت خالص، بدون هیچ
-// کتابخونه‌ی خارجی (تا وابسته به CDN بیرونی که ممکنه فیلتر باشه نباشیم)
-// ---------------------------------------------------------------
 const MAX_POINTS = 30;
-const bpmData = [];
-const spo2Data = [];
-
-const canvas = document.getElementById('liveChart');
-const ctx = canvas.getContext('2d');
-
-function resizeCanvas() {
-  const dpr = window.devicePixelRatio || 1;
-  const rect = canvas.getBoundingClientRect();
-  canvas.width = rect.width * dpr;
-  canvas.height = rect.height * dpr;
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  drawChart();
-}
-window.addEventListener('resize', resizeCanvas);
-
-function drawChart() {
-  const w = canvas.getBoundingClientRect().width;
-  const h = canvas.getBoundingClientRect().height;
-  ctx.clearRect(0, 0, w, h);
-
-  // خطوط راهنمای افقی
-  ctx.strokeStyle = '#2a2e37';
-  ctx.lineWidth = 1;
-  for (let i = 0; i <= 4; i++) {
-    const y = (h / 4) * i;
-    ctx.beginPath();
-    ctx.moveTo(0, y);
-    ctx.lineTo(w, y);
-    ctx.stroke();
-  }
-
-  if (bpmData.length < 2) return;
-
-  const allValues = [...bpmData, ...spo2Data].filter(v => v != null);
-  if (allValues.length === 0) return;
-  const minV = Math.min(...allValues) - 5;
-  const maxV = Math.max(...allValues) + 5;
-  const range = maxV - minV || 1;
-
-  function drawLine(data, color) {
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    data.forEach((val, i) => {
-      if (val == null) return;
-      const x = (i / (MAX_POINTS - 1)) * w;
-      const y = h - ((val - minV) / range) * h;
-      if (i === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-    });
-    ctx.stroke();
-  }
-
-  drawLine(bpmData, '#ff5c5c');
-  drawLine(spo2Data, '#4da3ff');
-}
+const ctx = document.getElementById('liveChart').getContext('2d');
+const chart = new Chart(ctx, {
+  type: 'line',
+  data: {
+    labels: [],
+    datasets: [
+      { label: 'BPM', data: [], borderColor: '#ff5c5c', backgroundColor: 'transparent', tension: 0.3, pointRadius: 0 },
+      { label: 'SpO2 %', data: [], borderColor: '#4da3ff', backgroundColor: 'transparent', tension: 0.3, pointRadius: 0 },
+    ],
+  },
+  options: {
+    animation: false,
+    responsive: true,
+    scales: {
+      x: { ticks: { color: '#9aa0aa', maxTicksLimit: 8 }, grid: { color: '#2a2e37' } },
+      y: { ticks: { color: '#9aa0aa' }, grid: { color: '#2a2e37' } },
+    },
+    plugins: { legend: { labels: { color: '#e8e8e8' } } },
+  },
+});
 
 let lastTs = null;
 
@@ -146,11 +98,16 @@ async function updateLive() {
 
       if (d.ts !== lastTs) {
         lastTs = d.ts;
-        bpmData.push(d.bpm);
-        spo2Data.push(d.fspo2 ?? d.spo2);
-        if (bpmData.length > MAX_POINTS) bpmData.shift();
-        if (spo2Data.length > MAX_POINTS) spo2Data.shift();
-        drawChart();
+        chart.data.labels.push(new Date(d.ts).toLocaleTimeString('fa-IR'));
+        chart.data.datasets[0].data.push(d.bpm);
+        chart.data.datasets[1].data.push(d.fspo2 ?? d.spo2);
+
+        if (chart.data.labels.length > MAX_POINTS) {
+          chart.data.labels.shift();
+          chart.data.datasets[0].data.shift();
+          chart.data.datasets[1].data.shift();
+        }
+        chart.update();
       }
     } else {
       document.getElementById('status').textContent = '⚪ هنوز داده‌ای دریافت نشده';
@@ -160,7 +117,6 @@ async function updateLive() {
   }
 }
 
-resizeCanvas();
 updateLive();
 setInterval(updateLive, 2000);
 </script>
