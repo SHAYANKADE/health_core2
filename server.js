@@ -4,7 +4,7 @@ const path = require('path');
 const app = express();
 app.use(express.json());
 
-const API_KEY = process.env.API_KEY || 'change-me';
+const API_KEY = process.env.API_KEY || '56';
 
 let latest = null;
 
