@@ -65,10 +65,6 @@
 </div>
 
 <script>
-// ---------------------------------------------------------------
-// نمودار زنده‌ی ساده - کاملاً با جاوااسکریپت خالص، بدون هیچ
-// کتابخونه‌ی خارجی (تا وابسته به CDN بیرونی که ممکنه فیلتر باشه نباشیم)
-// ---------------------------------------------------------------
 const MAX_POINTS = 30;
 const bpmData = [];
 const spo2Data = [];
@@ -76,19 +72,34 @@ const spo2Data = [];
 const canvas = document.getElementById('liveChart');
 const ctx = canvas.getContext('2d');
 
+let canvasWidth = 0;
+let canvasHeight = 0;
+let needsResize = true;
+
 function resizeCanvas() {
-  const dpr = window.devicePixelRatio || 1;
   const rect = canvas.getBoundingClientRect();
-  canvas.width = rect.width * dpr;
-  canvas.height = rect.height * dpr;
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  drawChart();
+  const dpr = window.devicePixelRatio || 1;
+  
+  if (canvas.width !== rect.width * dpr || canvas.height !== rect.height * dpr) {
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    canvasWidth = rect.width;
+    canvasHeight = rect.height;
+    needsResize = false;
+    return true;
+  }
+  return false;
 }
-window.addEventListener('resize', resizeCanvas);
 
 function drawChart() {
-  const w = canvas.getBoundingClientRect().width;
-  const h = canvas.getBoundingClientRect().height;
+  if (needsResize) {
+    resizeCanvas();
+  }
+  
+  const w = canvasWidth || canvas.getBoundingClientRect().width;
+  const h = canvasHeight || canvas.getBoundingClientRect().height;
+  
   ctx.clearRect(0, 0, w, h);
 
   // خطوط راهنمای افقی
@@ -104,23 +115,51 @@ function drawChart() {
 
   if (bpmData.length < 2) return;
 
-  const allValues = [...bpmData, ...spo2Data].filter(v => v != null);
-  if (allValues.length === 0) return;
-  const minV = Math.min(...allValues) - 5;
-  const maxV = Math.max(...allValues) + 5;
+  // محاسبه min/max بهینه‌تر
+  let minV = Infinity;
+  let maxV = -Infinity;
+  
+  // فقط داده‌های معتبر رو چک کن
+  for (let i = 0; i < bpmData.length; i++) {
+    if (bpmData[i] !== null && bpmData[i] !== undefined) {
+      if (bpmData[i] < minV) minV = bpmData[i];
+      if (bpmData[i] > maxV) maxV = bpmData[i];
+    }
+    if (spo2Data[i] !== null && spo2Data[i] !== undefined) {
+      if (spo2Data[i] < minV) minV = spo2Data[i];
+      if (spo2Data[i] > maxV) maxV = spo2Data[i];
+    }
+  }
+  
+  if (minV === Infinity || maxV === -Infinity) return;
+  
+  const padding = 5;
+  minV = Math.max(0, minV - padding);
+  maxV = maxV + padding;
   const range = maxV - minV || 1;
 
   function drawLine(data, color) {
     ctx.strokeStyle = color;
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 2.5;
     ctx.beginPath();
-    data.forEach((val, i) => {
-      if (val == null) return;
+    let started = false;
+    
+    for (let i = 0; i < data.length; i++) {
+      const val = data[i];
+      if (val == null) {
+        started = false;
+        continue;
+      }
       const x = (i / (MAX_POINTS - 1)) * w;
       const y = h - ((val - minV) / range) * h;
-      if (i === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-    });
+      
+      if (!started) {
+        ctx.moveTo(x, y);
+        started = true;
+      } else {
+        ctx.lineTo(x, y);
+      }
+    }
     ctx.stroke();
   }
 
@@ -129,10 +168,13 @@ function drawChart() {
 }
 
 let lastTs = null;
+let updateTimeout = null;
 
 async function updateLive() {
   try {
     const res = await fetch('/api/readings/latest');
+    if (!res.ok) throw new Error('Network error');
+    
     const d = await res.json();
 
     if (d && typeof d.bpm === 'number') {
@@ -140,9 +182,17 @@ async function updateLive() {
       document.getElementById('fspo2').textContent = d.fspo2 ?? d.spo2 ?? '--';
 
       const age = Math.round((Date.now() - d.ts) / 1000);
-      document.getElementById('status').textContent =
-        age < 10 ? '🟢 زنده - آخرین بروزرسانی ' + age + ' ثانیه پیش'
-                  : '🟠 آخرین داده ' + age + ' ثانیه پیش (ممکنه دستگاه آفلاین باشه)';
+      const statusEl = document.getElementById('status');
+      if (age < 10) {
+        statusEl.textContent = '🟢 زنده - آخرین بروزرسانی ' + age + ' ثانیه پیش';
+        statusEl.style.color = '#4ade80';
+      } else if (age < 30) {
+        statusEl.textContent = '🟠 آخرین داده ' + age + ' ثانیه پیش';
+        statusEl.style.color = '#fbbf24';
+      } else {
+        statusEl.textContent = '🔴 دستگاه آفلاین - آخرین داده ' + age + ' ثانیه پیش';
+        statusEl.style.color = '#f87171';
+      }
 
       if (d.ts !== lastTs) {
         lastTs = d.ts;
@@ -150,20 +200,39 @@ async function updateLive() {
         spo2Data.push(d.fspo2 ?? d.spo2);
         if (bpmData.length > MAX_POINTS) bpmData.shift();
         if (spo2Data.length > MAX_POINTS) spo2Data.shift();
-        drawChart();
+        
+        // فقط در صورت نیاز رسم کن
+        requestAnimationFrame(drawChart);
       }
     } else {
-      document.getElementById('status').textContent = '⚪ هنوز داده‌ای دریافت نشده';
+      document.getElementById('status').textContent = '⚪ منتظر دریافت داده...';
+      document.getElementById('status').style.color = '#9aa0aa';
     }
   } catch (e) {
     document.getElementById('status').textContent = '🔴 خطا در اتصال به سرور';
+    document.getElementById('status').style.color = '#f87171';
   }
 }
 
+// فقط یک بار ریسایز انجام بده
 resizeCanvas();
-updateLive();
-setInterval(updateLive, 2000);
-</script>
+drawChart();
 
+// اولین آپدیت با تاخیر کم
+setTimeout(updateLive, 100);
+
+// آپدیت هر ۲ ثانیه
+setInterval(updateLive, 2000);
+
+// ریسایز با تاخیر
+let resizeTimeout;
+window.addEventListener('resize', () => {
+  clearTimeout(resizeTimeout);
+  resizeTimeout = setTimeout(() => {
+    needsResize = true;
+    drawChart();
+  }, 200);
+});
+</script>
 </body>
 </html>
