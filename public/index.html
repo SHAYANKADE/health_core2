@@ -14,161 +14,106 @@
     padding: 24px 16px;
     margin: 0;
   }
-  h1 { font-weight: 500; margin-bottom: 8px; }
-  .cards { display: flex; justify-content: center; gap: 16px; flex-wrap: wrap; margin: 20px 0; }
+  h1 { 
+    font-weight: 500; 
+    margin-bottom: 8px; 
+    color: #ff5c5c;
+  }
+  .status { 
+    font-size: 14px; 
+    color: #9aa0aa; 
+    margin-bottom: 20px; 
+  }
+  .cards { 
+    display: flex; 
+    justify-content: center; 
+    gap: 24px; 
+    flex-wrap: wrap; 
+    margin: 30px 0 40px 0; 
+  }
   .card {
     background: #1c1f26;
-    border-radius: 16px;
-    padding: 20px 36px;
-    min-width: 140px;
+    border-radius: 20px;
+    padding: 30px 50px;
+    min-width: 180px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    transition: transform 0.2s;
   }
-  .label { font-size: 14px; color: #9aa0aa; margin-bottom: 8px; }
-  .value { font-size: 42px; font-weight: 700; }
+  .card:hover {
+    transform: scale(1.03);
+  }
+  .label { 
+    font-size: 16px; 
+    color: #9aa0aa; 
+    margin-bottom: 12px; 
+    letter-spacing: 0.5px;
+  }
+  .value { 
+    font-size: 56px; 
+    font-weight: 700; 
+    letter-spacing: 2px;
+  }
   .bpm   { color: #ff5c5c; }
   .spo2  { color: #4da3ff; }
-  .status { font-size: 13px; color: #9aa0aa; margin-bottom: 8px; }
-  .chart-wrap {
-    max-width: 900px;
-    margin: 0 auto;
-    background: #1c1f26;
-    border-radius: 16px;
-    padding: 16px;
+  .unit {
+    font-size: 20px;
+    color: #9aa0aa;
+    margin-right: 4px;
   }
-  .legend { display: flex; justify-content: center; gap: 20px; margin-top: 8px; font-size: 13px; }
-  .legend span { display: inline-flex; align-items: center; gap: 6px; }
-  .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
-  canvas { width: 100%; height: 220px; display: block; }
+  .last-update {
+    font-size: 13px;
+    color: #6b7280;
+    margin-top: 20px;
+  }
+  .status-dot {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    margin-left: 8px;
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0% { opacity: 0.3; transform: scale(1); }
+    50% { opacity: 1; transform: scale(1.2); }
+    100% { opacity: 0.3; transform: scale(1); }
+  }
+  .online .status-dot { background: #4ade80; }
+  .offline .status-dot { background: #f87171; animation: none; }
+  .waiting .status-dot { background: #fbbf24; }
 </style>
 </head>
 <body>
 
 <h1>❤️ داشبورد زنده پالس‌اکسیمتر</h1>
-<div class="status" id="status">در حال اتصال...</div>
+<div class="status" id="status">
+  <span class="status-dot"></span>
+  در حال اتصال...
+</div>
 
 <div class="cards">
   <div class="card">
-    <div class="label">ضربان قلب (BPM)</div>
+    <div class="label">ضربان قلب</div>
     <div class="value bpm" id="bpm">--</div>
   </div>
   <div class="card">
-    <div class="label">اشباع اکسیژن (FSpO2)</div>
+    <div class="label">اشباع اکسیژن</div>
     <div class="value spo2" id="fspo2">--</div>
   </div>
 </div>
 
-<div class="chart-wrap">
-  <canvas id="liveChart"></canvas>
-  <div class="legend">
-    <span><span class="dot" style="background:#ff5c5c"></span> BPM</span>
-    <span><span class="dot" style="background:#4da3ff"></span> SpO2 %</span>
-  </div>
-</div>
+<div class="last-update" id="lastUpdate">منتظر دریافت داده...</div>
 
 <script>
-const MAX_POINTS = 30;
-const bpmData = [];
-const spo2Data = [];
-
-const canvas = document.getElementById('liveChart');
-const ctx = canvas.getContext('2d');
-
-let canvasWidth = 0;
-let canvasHeight = 0;
-let needsResize = true;
-
-function resizeCanvas() {
-  const rect = canvas.getBoundingClientRect();
-  const dpr = window.devicePixelRatio || 1;
-  
-  if (canvas.width !== rect.width * dpr || canvas.height !== rect.height * dpr) {
-    canvas.width = rect.width * dpr;
-    canvas.height = rect.height * dpr;
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    canvasWidth = rect.width;
-    canvasHeight = rect.height;
-    needsResize = false;
-    return true;
-  }
-  return false;
-}
-
-function drawChart() {
-  if (needsResize) {
-    resizeCanvas();
-  }
-  
-  const w = canvasWidth || canvas.getBoundingClientRect().width;
-  const h = canvasHeight || canvas.getBoundingClientRect().height;
-  
-  ctx.clearRect(0, 0, w, h);
-
-  // خطوط راهنمای افقی
-  ctx.strokeStyle = '#2a2e37';
-  ctx.lineWidth = 1;
-  for (let i = 0; i <= 4; i++) {
-    const y = (h / 4) * i;
-    ctx.beginPath();
-    ctx.moveTo(0, y);
-    ctx.lineTo(w, y);
-    ctx.stroke();
-  }
-
-  if (bpmData.length < 2) return;
-
-  // محاسبه min/max بهینه‌تر
-  let minV = Infinity;
-  let maxV = -Infinity;
-  
-  // فقط داده‌های معتبر رو چک کن
-  for (let i = 0; i < bpmData.length; i++) {
-    if (bpmData[i] !== null && bpmData[i] !== undefined) {
-      if (bpmData[i] < minV) minV = bpmData[i];
-      if (bpmData[i] > maxV) maxV = bpmData[i];
-    }
-    if (spo2Data[i] !== null && spo2Data[i] !== undefined) {
-      if (spo2Data[i] < minV) minV = spo2Data[i];
-      if (spo2Data[i] > maxV) maxV = spo2Data[i];
-    }
-  }
-  
-  if (minV === Infinity || maxV === -Infinity) return;
-  
-  const padding = 5;
-  minV = Math.max(0, minV - padding);
-  maxV = maxV + padding;
-  const range = maxV - minV || 1;
-
-  function drawLine(data, color) {
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 2.5;
-    ctx.beginPath();
-    let started = false;
-    
-    for (let i = 0; i < data.length; i++) {
-      const val = data[i];
-      if (val == null) {
-        started = false;
-        continue;
-      }
-      const x = (i / (MAX_POINTS - 1)) * w;
-      const y = h - ((val - minV) / range) * h;
-      
-      if (!started) {
-        ctx.moveTo(x, y);
-        started = true;
-      } else {
-        ctx.lineTo(x, y);
-      }
-    }
-    ctx.stroke();
-  }
-
-  drawLine(bpmData, '#ff5c5c');
-  drawLine(spo2Data, '#4da3ff');
-}
-
 let lastTs = null;
-let updateTimeout = null;
+
+function updateStatus(text, className) {
+  const statusEl = document.getElementById('status');
+  statusEl.className = 'status ' + className;
+  // جدا کردن ایموجی از متن
+  const cleanText = text.replace(/[🟢🔴🟠⚪]/g, '').trim();
+  statusEl.innerHTML = `<span class="status-dot"></span> ${cleanText}`;
+}
 
 async function updateLive() {
   try {
@@ -178,61 +123,61 @@ async function updateLive() {
     const d = await res.json();
 
     if (d && typeof d.bpm === 'number') {
+      // بروزرسانی اعداد
       document.getElementById('bpm').textContent = d.bpm;
       document.getElementById('fspo2').textContent = d.fspo2 ?? d.spo2 ?? '--';
 
+      // بروزرسانی زمان
       const age = Math.round((Date.now() - d.ts) / 1000);
-      const statusEl = document.getElementById('status');
+      const updateEl = document.getElementById('lastUpdate');
+      
       if (age < 10) {
-        statusEl.textContent = '🟢 زنده - آخرین بروزرسانی ' + age + ' ثانیه پیش';
-        statusEl.style.color = '#4ade80';
+        updateStatus('زنده - آخرین بروزرسانی ' + age + ' ثانیه پیش', 'online');
+        updateEl.textContent = '🟢 اتصال برقرار';
+        updateEl.style.color = '#4ade80';
       } else if (age < 30) {
-        statusEl.textContent = '🟠 آخرین داده ' + age + ' ثانیه پیش';
-        statusEl.style.color = '#fbbf24';
+        updateStatus('آخرین داده ' + age + ' ثانیه پیش', 'waiting');
+        updateEl.textContent = '🟡 در حال دریافت...';
+        updateEl.style.color = '#fbbf24';
       } else {
-        statusEl.textContent = '🔴 دستگاه آفلاین - آخرین داده ' + age + ' ثانیه پیش';
-        statusEl.style.color = '#f87171';
+        updateStatus('دستگاه آفلاین - آخرین داده ' + age + ' ثانیه پیش', 'offline');
+        updateEl.textContent = '🔴 قطع ارتباط';
+        updateEl.style.color = '#f87171';
       }
 
+      // فقط در صورت تغییر داده، آپدیت کن
       if (d.ts !== lastTs) {
         lastTs = d.ts;
-        bpmData.push(d.bpm);
-        spo2Data.push(d.fspo2 ?? d.spo2);
-        if (bpmData.length > MAX_POINTS) bpmData.shift();
-        if (spo2Data.length > MAX_POINTS) spo2Data.shift();
-        
-        // فقط در صورت نیاز رسم کن
-        requestAnimationFrame(drawChart);
       }
     } else {
-      document.getElementById('status').textContent = '⚪ منتظر دریافت داده...';
-      document.getElementById('status').style.color = '#9aa0aa';
+      updateStatus('منتظر دریافت داده...', 'waiting');
+      document.getElementById('lastUpdate').textContent = '⚪ هیچ داده‌ای موجود نیست';
+      document.getElementById('lastUpdate').style.color = '#9aa0aa';
     }
   } catch (e) {
-    document.getElementById('status').textContent = '🔴 خطا در اتصال به سرور';
-    document.getElementById('status').style.color = '#f87171';
+    updateStatus('خطا در اتصال به سرور', 'offline');
+    document.getElementById('lastUpdate').textContent = '🔴 خطا در ارتباط';
+    document.getElementById('lastUpdate').style.color = '#f87171';
   }
 }
 
-// فقط یک بار ریسایز انجام بده
-resizeCanvas();
-drawChart();
-
-// اولین آپدیت با تاخیر کم
-setTimeout(updateLive, 100);
+// اجرای اولیه
+updateLive();
 
 // آپدیت هر ۲ ثانیه
 setInterval(updateLive, 2000);
 
-// ریسایز با تاخیر
-let resizeTimeout;
-window.addEventListener('resize', () => {
-  clearTimeout(resizeTimeout);
-  resizeTimeout = setTimeout(() => {
-    needsResize = true;
-    drawChart();
-  }, 200);
-});
+// رفرش خودکار اگر داده نیومد (اختیاری)
+let refreshTimeout;
+function checkData() {
+  const statusText = document.getElementById('status').textContent;
+  if (statusText.includes('آفلاین') || statusText.includes('خطا')) {
+    // سعی کن دوباره وصل شی
+    updateLive();
+  }
+}
+setInterval(checkData, 10000);
 </script>
+
 </body>
 </html>
