@@ -4,17 +4,12 @@ const path = require('path');
 const app = express();
 app.use(express.json());
 
-const API_KEY = process.env.API_KEY || 'change-me';
-
 let latest = null;
 
 app.post('/api/readings', (req, res) => {
-  const key = req.headers['x-api-key'];
-  if (key !== API_KEY) {
-    return res.status(401).json({ error: 'unauthorized' });
-  }
-
+  // حذف چک API Key
   const { bpm, spo2, fspo2 } = req.body || {};
+  
   if (typeof bpm !== 'number' || typeof spo2 !== 'number') {
     return res.status(400).json({ error: 'invalid payload, expected {bpm, spo2, fspo2}' });
   }
