@@ -21,11 +21,14 @@
     border-radius: 16px;
     padding: 20px 36px;
     min-width: 140px;
+    transition: box-shadow 0.3s ease;
   }
   .label { font-size: 14px; color: #9aa0aa; margin-bottom: 8px; }
   .value { font-size: 42px; font-weight: 700; }
   .bpm   { color: #ff5c5c; }
   .spo2  { color: #4da3ff; }
+  .co    { color: #3ddc84; transition: color 0.3s ease; }
+  .co-sub { font-size: 12px; color: #9aa0aa; margin-top: 6px; min-height: 14px; }
   .status { font-size: 13px; color: #9aa0aa; margin-bottom: 8px; }
   .chart-wrap {
     max-width: 900px;
@@ -38,6 +41,10 @@
   .legend span { display: inline-flex; align-items: center; gap: 6px; }
   .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
   canvas { width: 100%; height: 220px; display: block; }
+
+  .co-card-ok    { box-shadow: 0 0 0 2px #3ddc8433; }
+  .co-card-warn  { box-shadow: 0 0 0 2px #f5c542aa; }
+  .co-card-alert { box-shadow: 0 0 0 2px #ff5c5caa; }
 </style>
 </head>
 <body>
@@ -53,6 +60,11 @@
   <div class="card">
     <div class="label">اشباع اکسیژن (FSpO2)</div>
     <div class="value spo2" id="fspo2">--</div>
+  </div>
+  <div class="card" id="coCard">
+    <div class="label">مونوکسید کربن (CO ppm)</div>
+    <div class="value co" id="co">--</div>
+    <div class="co-sub" id="coStatus"></div>
   </div>
 </div>
 
@@ -128,6 +140,42 @@ function drawChart() {
   drawLine(spo2Data, '#4da3ff');
 }
 
+// ---------------------------------------------------------------
+// وضعیت رنگی CO بر اساس آستانه‌های استاندارد سلامتی
+// ---------------------------------------------------------------
+function updateCoDisplay(ppm) {
+  const coEl = document.getElementById('co');
+  const subEl = document.getElementById('coStatus');
+  const cardEl = document.getElementById('coCard');
+
+  coEl.textContent = (ppm ?? '--');
+  cardEl.classList.remove('co-card-ok', 'co-card-warn', 'co-card-alert');
+
+  if (ppm == null) {
+    coEl.style.color = '#9aa0aa';
+    subEl.textContent = '';
+    return;
+  }
+
+  if (ppm < 9) {
+    coEl.style.color = '#3ddc84';
+    subEl.textContent = 'طبیعی';
+    cardEl.classList.add('co-card-ok');
+  } else if (ppm < 35) {
+    coEl.style.color = '#f5c542';
+    subEl.textContent = 'قابل قبول - تهویه شود';
+    cardEl.classList.add('co-card-warn');
+  } else if (ppm < 100) {
+    coEl.style.color = '#ff9d42';
+    subEl.textContent = '⚠️ هشدار';
+    cardEl.classList.add('co-card-warn');
+  } else {
+    coEl.style.color = '#ff5c5c';
+    subEl.textContent = '🚨 خطر - آژیر فعال';
+    cardEl.classList.add('co-card-alert');
+  }
+}
+
 let lastTs = null;
 
 async function updateLive() {
@@ -138,6 +186,7 @@ async function updateLive() {
     if (d && typeof d.bpm === 'number') {
       document.getElementById('bpm').textContent = d.bpm;
       document.getElementById('fspo2').textContent = d.fspo2 ?? d.spo2 ?? '--';
+      updateCoDisplay(typeof d.co_ppm === 'number' ? Math.round(d.co_ppm) : null);
 
       const age = Math.round((Date.now() - d.ts) / 1000);
       document.getElementById('status').textContent =
