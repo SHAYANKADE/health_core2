@@ -50,10 +50,7 @@
 <body>
 
 <h1>❤️ داشبورد زنده پالس‌اکسیمتر</h1>
-<div class="status" id="status">در حال اتصال... (برای فعال‌سازی آژیر صوتی، یک‌بار روی صفحه کلیک کنید)</div>
-
-<!-- عنصر پخش صوتی مخفی -->
-<audio id="sirenAudio" src="alarm.mp3" loop></audio>
+<div class="status" id="status">در حال اتصال...</div>
 
 <div class="cards">
   <div class="card">
@@ -81,33 +78,8 @@
 
 <script>
 // ---------------------------------------------------------------
-// سیستم پخش فایل صوتی آژیر
-// ---------------------------------------------------------------
-const alarmAudio = document.getElementById('sirenAudio');
-let userInteracted = false;
-
-// فعال‌سازی اجازه پخش صدا با اولین کلیک کاربر (قانون اجباری مرورگرها)
-document.body.addEventListener('click', () => {
-  userInteracted = true;
-  // یک بار لود اولیه انجام میدهیم تا مرورگر دسترسی صوتی را ثبت کند
-  alarmAudio.load();
-}, { once: true });
-
-function startAlarm() {
-  if (userInteracted && alarmAudio.paused) {
-    alarmAudio.play().catch(e => console.log("منتظر اولین کلیک کاربر برای پخش صدا...", e));
-  }
-}
-
-function stopAlarm() {
-  if (!alarmAudio.paused) {
-    alarmAudio.pause();
-    alarmAudio.currentTime = 0; // ریست کردن آهنگ به ثانیه اول
-  }
-}
-
-// ---------------------------------------------------------------
-// نمودار زنده‌ی ساده
+// نمودار زنده‌ی ساده - کاملاً با جاوااسکریپت خالص، بدون هیچ
+// کتابخونه‌ی خارجی (تا وابسته به CDN بیرونی که ممکنه فیلتر باشه نباشیم)
 // ---------------------------------------------------------------
 const MAX_POINTS = 30;
 const bpmData = [];
@@ -169,7 +141,7 @@ function drawChart() {
 }
 
 // ---------------------------------------------------------------
-// وضعیت رنگی CO بر اساس آستانه‌های استاندارد سلامتی و کنترل آژیر
+// وضعیت رنگی CO بر اساس آستانه‌های استاندارد سلامتی
 // ---------------------------------------------------------------
 function updateCoDisplay(ppm) {
   const coEl = document.getElementById('co');
@@ -182,7 +154,6 @@ function updateCoDisplay(ppm) {
   if (ppm == null) {
     coEl.style.color = '#9aa0aa';
     subEl.textContent = '';
-    stopAlarm(); 
     return;
   }
 
@@ -190,23 +161,18 @@ function updateCoDisplay(ppm) {
     coEl.style.color = '#3ddc84';
     subEl.textContent = 'طبیعی';
     cardEl.classList.add('co-card-ok');
-    stopAlarm(); 
   } else if (ppm < 35) {
     coEl.style.color = '#f5c542';
     subEl.textContent = 'قابل قبول - تهویه شود';
     cardEl.classList.add('co-card-warn');
-    stopAlarm();
   } else if (ppm < 100) {
     coEl.style.color = '#ff9d42';
     subEl.textContent = '⚠️ هشدار';
     cardEl.classList.add('co-card-warn');
-    stopAlarm();
   } else {
-    // مقدار ۱۰۰ و بالاتر
     coEl.style.color = '#ff5c5c';
     subEl.textContent = '🚨 خطر - آژیر فعال';
     cardEl.classList.add('co-card-alert');
-    startAlarm(); // پخش فایل صوتی
   }
 }
 
@@ -225,7 +191,7 @@ async function updateLive() {
       const age = Math.round((Date.now() - d.ts) / 1000);
       document.getElementById('status').textContent =
         age < 10 ? '🟢 زنده - آخرین بروزرسانی ' + age + ' ثانیه پیش'
-                 : '🟠 آخرین داده ' + age + ' ثانیه پیش (ممکنه دستگاه آفلاین باشه)';
+                  : '🟠 آخرین داده ' + age + ' ثانیه پیش (ممکنه دستگاه آفلاین باشه)';
 
       if (d.ts !== lastTs) {
         lastTs = d.ts;
@@ -237,11 +203,9 @@ async function updateLive() {
       }
     } else {
       document.getElementById('status').textContent = '⚪ هنوز داده‌ای دریافت نشده';
-      stopAlarm();
     }
   } catch (e) {
     document.getElementById('status').textContent = '🔴 خطا در اتصال به سرور';
-    stopAlarm();
   }
 }
 
