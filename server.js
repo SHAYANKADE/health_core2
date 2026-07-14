@@ -1,20 +1,9 @@
 const express = require('express');
 const path = require('path');
 const app = express();
-
 app.use(express.json());
-
-// تعریف پوشه public برای دسترسی به فایل‌های استاتیک (مثل alarm.mp3)
-app.use(express.static(path.join(__dirname, 'public')));
-
 const API_KEY = process.env.API_KEY || '56';
 let latest = null;
-
-// روت اصلی برای باز شدن سایت
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
 app.post('/api/readings', (req, res) => {
   const key = req.headers['x-api-key'];
   if (key !== API_KEY) {
@@ -33,11 +22,10 @@ app.post('/api/readings', (req, res) => {
   };
   res.json({ ok: true });
 });
-
 app.get('/api/readings/latest', (req, res) => {
   res.json(latest || {});
 });
-
+app.use(express.static(path.join(__dirname, 'public')));
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
