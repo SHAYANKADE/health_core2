@@ -352,26 +352,32 @@ function updateCoDisplay(ppm) {
     return;
   }
 
+  // هیسترزیس برای جلوگیری از نوسان آژیر دور و بر آستانه: روی 100 روشن می‌شه،
+  // ولی فقط وقتی به زیر 90 برسه خاموش می‌شه. این از ری‌استارت مکرر صدا
+  // به‌خاطر نویز طبیعی سنسور دور و بر عدد 100 جلوگیری می‌کنه.
+  if (ppm >= 100) {
+    coAlarmOn = true;
+  } else if (ppm < 90) {
+    coAlarmOn = false;
+  }
+  // بین 90 تا 100: وضعیت قبلی آژیر دست‌نخورده می‌مونه (منطقه‌ی بی‌تفاوت)
+
   if (ppm < 9) {
     coEl.style.color = '#3ddc84';
     subEl.textContent = 'طبیعی';
     cardEl.classList.add('co-card-ok');
-    coAlarmOn = false;
   } else if (ppm < 35) {
     coEl.style.color = '#f5c542';
     subEl.textContent = 'قابل قبول - تهویه شود';
     cardEl.classList.add('co-card-warn');
-    coAlarmOn = false;
   } else if (ppm < 100) {
     coEl.style.color = '#ff9d42';
     subEl.textContent = '⚠️ هشدار';
     cardEl.classList.add('co-card-warn');
-    coAlarmOn = false;
   } else {
     coEl.style.color = '#ff5c5c';
     subEl.textContent = '🚨 خطر - آژیر فعال';
     cardEl.classList.add('co-card-alert');
-    coAlarmOn = true;
   }
   updateSirenState();
 }
