@@ -35,7 +35,6 @@
     justify-content: center;
   }
   #coCard {
-    padding-bottom: 56px;
   }
   .label { font-size: 14px; color: #9aa0aa; margin-bottom: 8px; }
   .value { font-size: 42px; font-weight: 700; }
@@ -83,21 +82,20 @@
     display: none;
   }
   .mute-btn {
-    position: absolute;
-    bottom: 10px;
-    left: 10px;
-    width: 38px;
-    height: 38px;
-    border-radius: 8px;
+    width: 52px;
+    height: 52px;
+    border-radius: 10px;
     background: #12141a;
     border: 2px solid #454b57;
     color: #e8e8e8;
-    font-size: 18px;
+    font-size: 24px;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
     padding: 0;
+    flex-shrink: 0;
+    margin-top: 14px;
   }
   .mute-btn.sound-on {
     border-color: #3ddc84;
@@ -106,7 +104,10 @@
 </head>
 <body>
 
-<h1>❤️ داشبورد زنده پالس‌اکسیمتر</h1>
+<div style="display:flex; align-items:center; justify-content:center; gap:12px; flex-wrap:wrap;">
+  <h1>❤️ داشبورد زنده پالس‌اکسیمتر</h1>
+  <button id="muteBtn" class="mute-btn" onclick="toggleSound()" title="فعال/غیرفعال کردن هشدار صوتی">🔇</button>
+</div>
 <div class="status" id="status">در حال اتصال...</div>
 
 <div class="cards">
@@ -123,7 +124,6 @@
     <div class="value pulse-text" id="pulseText">--</div>
   </div>
   <div class="card" id="coCard">
-    <button id="muteBtn" class="mute-btn" onclick="toggleSound()" title="فعال/غیرفعال کردن هشدار صوتی">🔇</button>
     <div class="label">مونوکسید کربن (CO ppm)</div>
     <div class="value co" id="co">--</div>
     <div class="co-sub" id="coStatus"></div>
@@ -394,15 +394,23 @@ async function updateLive() {
         age < 10 ? '🟢 زنده - آخرین بروزرسانی ' + age + ' ثانیه پیش'
                   : '🟠 آخرین داده ' + age + ' ثانیه پیش (ممکنه دستگاه آفلاین باشه)';
 
+      const pulseStatus = typeof d.pulse_status === 'number' ? d.pulse_status : 0;
+
       if (d.ts !== lastTs) {
         lastTs = d.ts;
-        bpmData.push(d.bpm);
-        spo2Data.push(d.fspo2 ?? d.spo2);
-        if (bpmData.length > MAX_POINTS) bpmData.shift();
-        if (spo2Data.length > MAX_POINTS) spo2Data.shift();
-        drawChart();
 
-        if (Array.isArray(d.wave) && d.wave.length > 1) {
+        // فقط وقتی انگشت روی سنسوره و نبض معتبر داره ثبت میشه، نقطه‌ی جدید
+        // به نمودار اضافه می‌شه؛ در غیر این‌صورت نمودار همون‌جا که هست متوقف می‌مونه
+        // (به‌جای ادامه دادن با یه خط ممتد از مقدار قدیمی).
+        if (pulseStatus === 1) {
+          bpmData.push(d.bpm);
+          spo2Data.push(d.fspo2 ?? d.spo2);
+          if (bpmData.length > MAX_POINTS) bpmData.shift();
+          if (spo2Data.length > MAX_POINTS) spo2Data.shift();
+          drawChart();
+        }
+
+        if (pulseStatus === 1 && Array.isArray(d.wave) && d.wave.length > 1) {
           lastWave = d.wave;
           drawWave(lastWave);
         }
