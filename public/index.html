@@ -22,6 +22,10 @@
     padding: 20px 36px;
     min-width: 140px;
     transition: box-shadow 0.3s ease;
+    position: relative;
+  }
+  #coCard {
+    padding-bottom: 56px;
   }
   .label { font-size: 14px; color: #9aa0aa; margin-bottom: 8px; }
   .value { font-size: 42px; font-weight: 700; }
@@ -45,6 +49,30 @@
   .co-card-ok    { box-shadow: 0 0 0 2px #3ddc8433; }
   .co-card-warn  { box-shadow: 0 0 0 2px #f5c542aa; }
   .co-card-alert { box-shadow: 0 0 0 2px #ff5c5caa; }
+
+  #enableSoundBtn {
+    display: none;
+  }
+  .mute-btn {
+    position: absolute;
+    bottom: 10px;
+    left: 10px;
+    width: 38px;
+    height: 38px;
+    border-radius: 8px;
+    background: #12141a;
+    border: 2px solid #454b57;
+    color: #e8e8e8;
+    font-size: 18px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+  }
+  .mute-btn.sound-on {
+    border-color: #3ddc84;
+  }
 </style>
 </head>
 <body>
@@ -62,11 +90,14 @@
     <div class="value spo2" id="fspo2">--</div>
   </div>
   <div class="card" id="coCard">
+    <button id="muteBtn" class="mute-btn" onclick="toggleSound()" title="فعال/غیرفعال کردن هشدار صوتی">🔇</button>
     <div class="label">مونوکسید کربن (CO ppm)</div>
     <div class="value co" id="co">--</div>
     <div class="co-sub" id="coStatus"></div>
   </div>
 </div>
+
+<audio id="alarmAudio" src="alarm.wav" loop preload="auto"></audio>
 
 <div class="chart-wrap">
   <canvas id="liveChart"></canvas>
@@ -141,6 +172,47 @@ function drawChart() {
 }
 
 // ---------------------------------------------------------------
+// آژیر صوتی سایت - پخش فایل alarm.wav (لوپ‌شونده)، کنترل با دکمه‌ی
+// کوچک داخل کارت CO. مرورگرها بدون یک تعامل کاربر اجازه‌ی پخش خودکار
+// صدا نمی‌دن، برای همین کلیک روی دکمه هم فعال/غیرفعال می‌کنه و هم
+// (بار اول) اجازه‌ی پخش رو از مرورگر می‌گیره.
+// ---------------------------------------------------------------
+const alarmAudio = document.getElementById('alarmAudio');
+let soundEnabled = false;
+let alarmActive = false;
+
+function toggleSound() {
+  soundEnabled = !soundEnabled;
+  const btn = document.getElementById('muteBtn');
+  btn.textContent = soundEnabled ? '🔊' : '🔇';
+  btn.classList.toggle('sound-on', soundEnabled);
+
+  if (soundEnabled) {
+    if (alarmActive) {
+      alarmAudio.currentTime = 0;
+      alarmAudio.play().catch(() => {});
+    } else {
+      // یک play/pause سریع فقط برای گرفتن اجازه‌ی پخش از مرورگر
+      alarmAudio.play().then(() => alarmAudio.pause()).catch(() => {});
+    }
+  } else {
+    alarmAudio.pause();
+  }
+}
+
+function setAlarm(active) {
+  if (active === alarmActive) return;
+  alarmActive = active;
+
+  if (active && soundEnabled) {
+    alarmAudio.currentTime = 0;
+    alarmAudio.play().catch(() => {});
+  } else {
+    alarmAudio.pause();
+  }
+}
+
+// ---------------------------------------------------------------
 // وضعیت رنگی CO بر اساس آستانه‌های استاندارد سلامتی
 // ---------------------------------------------------------------
 function updateCoDisplay(ppm) {
@@ -154,6 +226,7 @@ function updateCoDisplay(ppm) {
   if (ppm == null) {
     coEl.style.color = '#9aa0aa';
     subEl.textContent = '';
+    setAlarm(false);
     return;
   }
 
@@ -161,18 +234,22 @@ function updateCoDisplay(ppm) {
     coEl.style.color = '#3ddc84';
     subEl.textContent = 'طبیعی';
     cardEl.classList.add('co-card-ok');
+    setAlarm(false);
   } else if (ppm < 35) {
     coEl.style.color = '#f5c542';
     subEl.textContent = 'قابل قبول - تهویه شود';
     cardEl.classList.add('co-card-warn');
+    setAlarm(false);
   } else if (ppm < 100) {
     coEl.style.color = '#ff9d42';
     subEl.textContent = '⚠️ هشدار';
     cardEl.classList.add('co-card-warn');
+    setAlarm(false);
   } else {
     coEl.style.color = '#ff5c5c';
     subEl.textContent = '🚨 خطر - آژیر فعال';
     cardEl.classList.add('co-card-alert');
+    setAlarm(true);
   }
 }
 
