@@ -9,15 +9,16 @@ app.post('/api/readings', (req, res) => {
   if (key !== API_KEY) {
     return res.status(401).json({ error: 'unauthorized' });
   }
-  const { bpm, spo2, fspo2, co_ppm } = req.body || {};
+  const { bpm, spo2, fspo2, co_ppm, wave } = req.body || {};
   if (typeof bpm !== 'number' || typeof spo2 !== 'number') {
-    return res.status(400).json({ error: 'invalid payload, expected {bpm, spo2, fspo2, co_ppm}' });
+    return res.status(400).json({ error: 'invalid payload, expected {bpm, spo2, fspo2, co_ppm, wave}' });
   }
   latest = {
     bpm,
     spo2,
     fspo2: typeof fspo2 === 'number' ? fspo2 : null,
     co_ppm: typeof co_ppm === 'number' ? co_ppm : null,
+    wave: Array.isArray(wave) ? wave : null,
     ts: Date.now(),
   };
   res.json({ ok: true });
