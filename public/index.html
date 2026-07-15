@@ -399,10 +399,10 @@ async function updateLive() {
       if (d.ts !== lastTs) {
         lastTs = d.ts;
 
-        // فقط وقتی انگشت روی سنسوره و نبض معتبر داره ثبت میشه، نقطه‌ی جدید
-        // به نمودار اضافه می‌شه؛ در غیر این‌صورت نمودار همون‌جا که هست متوقف می‌مونه
-        // (به‌جای ادامه دادن با یه خط ممتد از مقدار قدیمی).
-        if (pulseStatus === 1) {
+        // فقط وقتی انگشت کلاً روی سنسور نیست (pulse_status=0) نمودار متوقف می‌مونه.
+        // توی حالت قطع نبض (pulse_status=2) هم دیتا ارسال می‌شه و یه خط صاف
+        // کشیده می‌شه تا مشخص باشه مقدار ثابت مونده و چند وقته این‌طوریه.
+        if (pulseStatus === 1 || pulseStatus === 2) {
           bpmData.push(d.bpm);
           spo2Data.push(d.fspo2 ?? d.spo2);
           if (bpmData.length > MAX_POINTS) bpmData.shift();
