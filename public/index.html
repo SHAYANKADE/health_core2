@@ -320,12 +320,12 @@ function updatePulseDisplay(status) {
     cardEl.classList.add('pulse-card-danger');
     pulseAlarmOn = true;
   } else if (status === 1) {
-    textEl.textContent = '✅ انگشت روی سنسور - نبض طبیعی';
+    textEl.textContent = 'انگشت قرار گرفته - نبض طبیعی';
     textEl.style.color = '#3ddc84';
     cardEl.classList.add('pulse-card-ok');
     pulseAlarmOn = false;
   } else {
-    textEl.textContent = 'انگشت روی سنسور نیست';
+    textEl.textContent = 'انگشت شناسایی نشد';
     textEl.style.color = '#9aa0aa';
     cardEl.classList.add('pulse-card-none');
     pulseAlarmOn = false;
