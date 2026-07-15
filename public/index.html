@@ -107,6 +107,13 @@
   </div>
 </div>
 
+<div class="chart-wrap" style="margin-top: 16px;">
+  <canvas id="waveChart"></canvas>
+  <div class="legend">
+    <span><span class="dot" style="background:#3ddc84"></span> شکل موج نبض (PPG)</span>
+  </div>
+</div>
+
 <script>
 // ---------------------------------------------------------------
 // نمودار زنده‌ی ساده - کاملاً با جاوااسکریپت خالص، بدون هیچ
@@ -128,6 +135,57 @@ function resizeCanvas() {
   drawChart();
 }
 window.addEventListener('resize', resizeCanvas);
+
+// ---------------------------------------------------------------
+// نمودار شکل موج نبض (PPG) - همون داده‌ی خامی که روی OLED دیده می‌شه،
+// هر بار که یک بسته‌ی جدید از بورد می‌رسه (هر ~1 ثانیه) کامل بازرسم می‌شه
+// ---------------------------------------------------------------
+const waveCanvas = document.getElementById('waveChart');
+const waveCtx = waveCanvas.getContext('2d');
+let lastWave = null;
+
+function resizeWaveCanvas() {
+  const dpr = window.devicePixelRatio || 1;
+  const rect = waveCanvas.getBoundingClientRect();
+  waveCanvas.width = rect.width * dpr;
+  waveCanvas.height = rect.height * dpr;
+  waveCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  drawWave(lastWave);
+}
+window.addEventListener('resize', resizeWaveCanvas);
+
+function drawWave(waveArr) {
+  const w = waveCanvas.getBoundingClientRect().width;
+  const h = waveCanvas.getBoundingClientRect().height;
+  waveCtx.clearRect(0, 0, w, h);
+
+  waveCtx.strokeStyle = '#2a2e37';
+  waveCtx.lineWidth = 1;
+  for (let i = 0; i <= 4; i++) {
+    const y = (h / 4) * i;
+    waveCtx.beginPath();
+    waveCtx.moveTo(0, y);
+    waveCtx.lineTo(w, y);
+    waveCtx.stroke();
+  }
+
+  if (!waveArr || waveArr.length < 2) return;
+
+  const minV = Math.min(...waveArr);
+  const maxV = Math.max(...waveArr);
+  const range = (maxV - minV) || 1;
+
+  waveCtx.strokeStyle = '#3ddc84';
+  waveCtx.lineWidth = 2;
+  waveCtx.beginPath();
+  waveArr.forEach((val, i) => {
+    const x = (i / (waveArr.length - 1)) * w;
+    const y = h - ((val - minV) / range) * h;
+    if (i === 0) waveCtx.moveTo(x, y);
+    else waveCtx.lineTo(x, y);
+  });
+  waveCtx.stroke();
+}
 
 function drawChart() {
   const w = canvas.getBoundingClientRect().width;
@@ -277,6 +335,11 @@ async function updateLive() {
         if (bpmData.length > MAX_POINTS) bpmData.shift();
         if (spo2Data.length > MAX_POINTS) spo2Data.shift();
         drawChart();
+
+        if (Array.isArray(d.wave) && d.wave.length > 1) {
+          lastWave = d.wave;
+          drawWave(lastWave);
+        }
       }
     } else {
       document.getElementById('status').textContent = '⚪ هنوز داده‌ای دریافت نشده';
@@ -287,6 +350,7 @@ async function updateLive() {
 }
 
 resizeCanvas();
+resizeWaveCanvas();
 updateLive();
 setInterval(updateLive, 2000);
 </script>
