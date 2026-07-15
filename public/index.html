@@ -15,14 +15,24 @@
     margin: 0;
   }
   h1 { font-weight: 500; margin-bottom: 8px; }
-  .cards { display: flex; justify-content: center; gap: 16px; flex-wrap: wrap; margin: 20px 0; }
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(160px, 1fr));
+    gap: 16px;
+    max-width: 520px;
+    margin: 20px auto;
+  }
   .card {
     background: #1c1f26;
     border-radius: 16px;
-    padding: 20px 36px;
-    min-width: 140px;
+    padding: 20px 24px;
+    min-height: 150px;
     transition: box-shadow 0.3s ease;
     position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
   }
   #coCard {
     padding-bottom: 56px;
@@ -49,6 +59,25 @@
   .co-card-ok    { box-shadow: 0 0 0 2px #3ddc8433; }
   .co-card-warn  { box-shadow: 0 0 0 2px #f5c542aa; }
   .co-card-alert { box-shadow: 0 0 0 2px #ff5c5caa; }
+
+  .pulse-text {
+    font-size: 18px;
+    line-height: 1.6;
+    min-height: 42px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .pulse-card-none   { box-shadow: 0 0 0 2px #9aa0aa55; }
+  .pulse-card-ok     { box-shadow: 0 0 0 2px #3ddc8433; }
+  .pulse-card-danger {
+    box-shadow: 0 0 0 2px #ff5c5c;
+    animation: pulseBlink 1s infinite;
+  }
+  @keyframes pulseBlink {
+    0%, 100% { box-shadow: 0 0 0 2px #ff5c5c; }
+    50%      { box-shadow: 0 0 0 4px #ff2020; }
+  }
 
   #enableSoundBtn {
     display: none;
@@ -82,12 +111,16 @@
 
 <div class="cards">
   <div class="card">
+    <div class="label">اشباع اکسیژن (FSpO2)</div>
+    <div class="value spo2" id="fspo2">--</div>
+  </div>
+  <div class="card">
     <div class="label">ضربان قلب (BPM)</div>
     <div class="value bpm" id="bpm">--</div>
   </div>
-  <div class="card">
-    <div class="label">اشباع اکسیژن (FSpO2)</div>
-    <div class="value spo2" id="fspo2">--</div>
+  <div class="card" id="pulseCard">
+    <div class="label">وضعیت نبض</div>
+    <div class="value pulse-text" id="pulseText">--</div>
   </div>
   <div class="card" id="coCard">
     <button id="muteBtn" class="mute-btn" onclick="toggleSound()" title="فعال/غیرفعال کردن هشدار صوتی">🔇</button>
@@ -238,6 +271,8 @@ function drawChart() {
 const alarmAudio = document.getElementById('alarmAudio');
 let soundEnabled = false;
 let alarmActive = false;
+let coAlarmOn = false;
+let pulseAlarmOn = false;
 
 function toggleSound() {
   soundEnabled = !soundEnabled;
@@ -258,16 +293,44 @@ function toggleSound() {
   }
 }
 
-function setAlarm(active) {
-  if (active === alarmActive) return;
-  alarmActive = active;
+function updateSirenState() {
+  const shouldAlarm = coAlarmOn || pulseAlarmOn;
+  if (shouldAlarm === alarmActive) return;
+  alarmActive = shouldAlarm;
 
-  if (active && soundEnabled) {
+  if (alarmActive && soundEnabled) {
     alarmAudio.currentTime = 0;
     alarmAudio.play().catch(() => {});
-  } else {
+  } else if (!alarmActive) {
     alarmAudio.pause();
   }
+}
+
+// ---------------------------------------------------------------
+// وضعیت نبض: 0 = انگشت روی سنسور نیست، 1 = نبض طبیعی، 2 = نبض قطع (خطر)
+// ---------------------------------------------------------------
+function updatePulseDisplay(status) {
+  const textEl = document.getElementById('pulseText');
+  const cardEl = document.getElementById('pulseCard');
+  cardEl.classList.remove('pulse-card-none', 'pulse-card-ok', 'pulse-card-danger');
+
+  if (status === 2) {
+    textEl.textContent = '🚨 نبض قطع شده - خطر مرگ';
+    textEl.style.color = '#ff5c5c';
+    cardEl.classList.add('pulse-card-danger');
+    pulseAlarmOn = true;
+  } else if (status === 1) {
+    textEl.textContent = '✅ انگشت روی سنسور - نبض طبیعی';
+    textEl.style.color = '#3ddc84';
+    cardEl.classList.add('pulse-card-ok');
+    pulseAlarmOn = false;
+  } else {
+    textEl.textContent = 'انگشت روی سنسور نیست';
+    textEl.style.color = '#9aa0aa';
+    cardEl.classList.add('pulse-card-none');
+    pulseAlarmOn = false;
+  }
+  updateSirenState();
 }
 
 // ---------------------------------------------------------------
@@ -284,7 +347,8 @@ function updateCoDisplay(ppm) {
   if (ppm == null) {
     coEl.style.color = '#9aa0aa';
     subEl.textContent = '';
-    setAlarm(false);
+    coAlarmOn = false;
+    updateSirenState();
     return;
   }
 
@@ -292,23 +356,24 @@ function updateCoDisplay(ppm) {
     coEl.style.color = '#3ddc84';
     subEl.textContent = 'طبیعی';
     cardEl.classList.add('co-card-ok');
-    setAlarm(false);
+    coAlarmOn = false;
   } else if (ppm < 35) {
     coEl.style.color = '#f5c542';
     subEl.textContent = 'قابل قبول - تهویه شود';
     cardEl.classList.add('co-card-warn');
-    setAlarm(false);
+    coAlarmOn = false;
   } else if (ppm < 100) {
     coEl.style.color = '#ff9d42';
     subEl.textContent = '⚠️ هشدار';
     cardEl.classList.add('co-card-warn');
-    setAlarm(false);
+    coAlarmOn = false;
   } else {
     coEl.style.color = '#ff5c5c';
     subEl.textContent = '🚨 خطر - آژیر فعال';
     cardEl.classList.add('co-card-alert');
-    setAlarm(true);
+    coAlarmOn = true;
   }
+  updateSirenState();
 }
 
 let lastTs = null;
@@ -322,6 +387,7 @@ async function updateLive() {
       document.getElementById('bpm').textContent = d.bpm;
       document.getElementById('fspo2').textContent = d.fspo2 ?? d.spo2 ?? '--';
       updateCoDisplay(typeof d.co_ppm === 'number' ? Math.round(d.co_ppm) : null);
+      updatePulseDisplay(typeof d.pulse_status === 'number' ? d.pulse_status : 0);
 
       const age = Math.round((Date.now() - d.ts) / 1000);
       document.getElementById('status').textContent =
